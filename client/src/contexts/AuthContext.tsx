@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import axios from 'axios';
-import { API_URL } from '../config';
+import { VITE_BACKEND_URL as API_URL } from '../config';
 
 // Types
 export type UserRole = 'PLAYER' | 'GM';

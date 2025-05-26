@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { API_URL } from '../config';
+import { VITE_BACKEND_URL as API_URL } from '../config';
 
 // Get all players (GM only)
 export const getAllPlayers = async () => {
