@@ -3,8 +3,9 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "dev": "node src/index.js",
+    "postinstall": "npx prisma migrate deploy",
     "start": "node src/index.js",
+    "dev": "node src/index.js",
     "setup:db": "prisma migrate dev"
   },
   "dependencies": {
