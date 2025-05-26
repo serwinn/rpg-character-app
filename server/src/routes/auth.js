@@ -1,0 +1,128 @@
+import express from 'express';
+import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
+import { verifyToken } from '../middleware/auth.js';
+
+const router = express.Router();
+
+// Register a new user
+router.post('/register', async (req, res) => {
+  const { name, email, password, role } = req.body;
+  const prisma = req.app.locals.prisma;
+  
+  try {
+    // Check if user already exists
+    const existingUser = await prisma.user.findUnique({
+      where: { email }
+    });
+    
+    if (existingUser) {
+      return res.status(400).json({ message: 'User with this email already exists' });
+    }
+    
+    // Validate role
+    if (role !== 'PLAYER' && role !== 'GM') {
+      return res.status(400).json({ message: 'Invalid role. Must be PLAYER or GM' });
+    }
+    
+    // Hash password
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(password, salt);
+    
+    // Create new user
+    const user = await prisma.user.create({
+      data: {
+        name,
+        email,
+        password: hashedPassword,
+        role
+      }
+    });
+    
+    // Generate JWT token
+    const token = jwt.sign(
+      { id: user.id, email: user.email, role: user.role },
+      process.env.JWT_SECRET,
+      { expiresIn: '7d' }
+    );
+    
+    // Return user info and token (exclude password)
+    const { password: _, ...userWithoutPassword } = user;
+    
+    res.status(201).json({
+      message: 'User registered successfully',
+      user: userWithoutPassword,
+      token
+    });
+  } catch (error) {
+    console.error('Registration error:', error);
+    res.status(500).json({ message: 'Server error during registration' });
+  }
+});
+
+// Login user
+router.post('/login', async (req, res) => {
+  const { email, password } = req.body;
+  const prisma = req.app.locals.prisma;
+  
+  try {
+    // Find user by email
+    const user = await prisma.user.findUnique({
+      where: { email }
+    });
+    
+    if (!user) {
+      return res.status(400).json({ message: 'Invalid email or password' });
+    }
+    
+    // Verify password
+    const isMatch = await bcrypt.compare(password, user.password);
+    
+    if (!isMatch) {
+      return res.status(400).json({ message: 'Invalid email or password' });
+    }
+    
+    // Generate JWT token
+    const token = jwt.sign(
+      { id: user.id, email: user.email, role: user.role },
+      process.env.JWT_SECRET,
+      { expiresIn: '7d' }
+    );
+    
+    // Return user info and token (exclude password)
+    const { password: _, ...userWithoutPassword } = user;
+    
+    res.json({
+      message: 'Login successful',
+      user: userWithoutPassword,
+      token
+    });
+  } catch (error) {
+    console.error('Login error:', error);
+    res.status(500).json({ message: 'Server error during login' });
+  }
+});
+
+// Get current user
+router.get('/me', verifyToken, async (req, res) => {
+  const prisma = req.app.locals.prisma;
+  
+  try {
+    const user = await prisma.user.findUnique({
+      where: { id: req.user.id }
+    });
+    
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+    
+    const { password, ...userWithoutPassword } = user;
+    
+    res.json(userWithoutPassword);
+  } catch (error) {
+    console.error('Error fetching current user:', error);
+    res.status(500).json({ message: 'Server error fetching user data' });
+  }
+});
+
+export default router;

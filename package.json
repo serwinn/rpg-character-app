@@ -1,0 +1,24 @@
+{
+  "name": "rpg-character-sheet",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "concurrently \"npm run dev:client\" \"npm run dev:server\"",
+    "dev:client": "cd client && npm run dev",
+    "dev:server": "cd server && npm run dev",
+    "setup": "npm install && npm run setup:client && npm run setup:server",
+    "setup:client": "cd client && npm install",
+    "setup:server": "cd server && npm install"
+  },
+  "devDependencies": {
+    "@types/react": "^19.1.5",
+    "@types/react-dom": "^19.1.5",
+    "@vitejs/plugin-react": "^4.5.0",
+    "concurrently": "^8.2.2",
+    "vite": "^6.3.5"
+  },
+  "dependencies": {
+    "autoprefixer": "^10.4.21"
+  }
+}
