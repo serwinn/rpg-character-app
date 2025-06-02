@@ -3,6 +3,8 @@ import { useAuth } from './contexts/AuthContext';
 import Layout from './components/Layout';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
+import ForgotPasswordPage from './pages/ForgotPasswordPage';
+import ResetPasswordPage from './pages/ResetPasswordPage';
 import PlayerDashboard from './pages/player/PlayerDashboard';
 import PlayerCharacterSheet from './pages/player/PlayerCharacterSheet';
 import GMDashboard from './pages/gm/GMDashboard';
@@ -55,6 +57,8 @@ function App() {
         {/* Auth routes */}
         <Route path="login" element={<LoginPage />} />
         <Route path="register" element={<RegisterPage />} />
+        <Route path="forgot-password" element={<ForgotPasswordPage />} />
+        <Route path="reset-password/:token" element={<ResetPasswordPage />} />
         
         {/* Player routes */}
         <Route path="player">

@@ -3,42 +3,139 @@ import { verifyToken, checkRole } from '../middleware/auth.js';
 
 const router = express.Router();
 
-// Get all characters (GM only)
-router.get(
-  '/',
-  verifyToken,           // <-- Add this!
-  checkRole(['GM']),     // <-- Then this
-  async (req, res) => {
-    const prisma = req.app.locals.prisma;
-    try {
-      const characters = await prisma.character.findMany({
-        include: {
-          player: {
-            select: {
-              id: true,
-              name: true,
-              email: true
-            }
+// Request GM access to a character
+router.post('/:id/request-access', verifyToken, checkRole(['GM']), async (req, res) => {
+  const prisma = req.app.locals.prisma;
+  const { id } = req.params;
+  const gmId = req.user.id;
+  
+  try {
+    const character = await prisma.character.findUnique({
+      where: { id },
+      include: { player: true }
+    });
+    
+    if (!character) {
+      return res.status(404).json({ message: 'Character not found' });
+    }
+    
+    // Add GM to pending access list
+    await prisma.character.update({
+      where: { id },
+      data: {
+        gmAccess: {
+          connect: { id: gmId }
+        }
+      }
+    });
+    
+    // Notify player through WebSocket if needed
+    const io = req.app.locals.io;
+    if (character.playerId) {
+      io.to(`user:${character.playerId}`).emit('gm-access-request', {
+        characterId: id,
+        gmId,
+        gmName: req.user.name
+      });
+    }
+    
+    res.json({ message: 'Access request sent successfully' });
+  } catch (error) {
+    console.error('Error requesting GM access:', error);
+    res.status(500).json({ message: 'Server error requesting GM access' });
+  }
+});
+
+// Approve/deny GM access
+router.post('/:id/approve-access/:gmId', verifyToken, async (req, res) => {
+  const prisma = req.app.locals.prisma;
+  const { id, gmId } = req.params;
+  const { approved } = req.body;
+  const playerId = req.user.id;
+  
+  try {
+    const character = await prisma.character.findUnique({
+      where: { id }
+    });
+    
+    if (!character || character.playerId !== playerId) {
+      return res.status(403).json({ message: 'Not authorized' });
+    }
+    
+    if (approved) {
+      // Grant access
+      await prisma.character.update({
+        where: { id },
+        data: {
+          gmAccess: {
+            connect: { id: gmId }
           }
         }
       });
-
-      // Flatten occupation and lastUpdated for frontend
-      const mapped = characters.map((char) => ({
-        id: char.id,
-        name: char.name,
-        player: char.player,
-        occupation: char.data?.occupation || '',
-        lastUpdated: char.updatedAt ? char.updatedAt.toISOString() : char.createdAt.toISOString(),
-      }));
-
-      res.json(mapped);
-    } catch (error) {
-      console.error('Error fetching all characters:', error);
-      res.status(500).json({ message: 'Server error fetching characters' });
+    } else {
+      // Remove from pending access
+      await prisma.character.update({
+        where: { id },
+        data: {
+          gmAccess: {
+            disconnect: { id: gmId }
+          }
+        }
+      });
     }
+    
+    // Notify GM through WebSocket
+    const io = req.app.locals.io;
+    io.to(`user:${gmId}`).emit('gm-access-response', {
+      characterId: id,
+      approved
+    });
+    
+    res.json({ message: `Access ${approved ? 'granted' : 'denied'} successfully` });
+  } catch (error) {
+    console.error('Error managing GM access:', error);
+    res.status(500).json({ message: 'Server error managing GM access' });
   }
-);
+});
+
+// Get all characters (GM only, but now respecting access control)
+router.get('/', verifyToken, checkRole(['GM']), async (req, res) => {
+  const prisma = req.app.locals.prisma;
+  const gmId = req.user.id;
+  
+  try {
+    const characters = await prisma.character.findMany({
+      where: {
+        OR: [
+          { gmAccess: { some: { id: gmId } } }, // Characters where GM has been granted access
+          { player: null } // Characters without a player assigned
+        ]
+      },
+      include: {
+        player: {
+          select: {
+            id: true,
+            name: true,
+            email: true
+          }
+        }
+      }
+    });
+    
+    const mapped = characters.map((char) => ({
+      id: char.id,
+      name: char.name,
+      player: char.player,
+      occupation: char.data?.occupation || '',
+      lastUpdated: char.updatedAt ? char.updatedAt.toISOString() : char.createdAt.toISOString(),
+    }));
+    
+    res.json(mapped);
+  } catch (error) {
+    console.error('Error fetching all characters:', error);
+    res.status(500).json({ message: 'Server error fetching characters' });
+  }
+});
 
 // Get player's characters
 router.get('/player', async (req, res) => {
