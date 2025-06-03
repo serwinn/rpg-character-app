@@ -10,11 +10,20 @@ const router = express.Router();
 // Email configuration
 const transporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST,
-  port: process.env.SMTP_PORT,
-  secure: true,
+  port: parseInt(process.env.SMTP_PORT),
+  secure: process.env.SMTP_SECURE === 'true',
   auth: {
     user: process.env.SMTP_USER,
     pass: process.env.SMTP_PASS
+  }
+});
+
+// Verify email configuration on startup
+transporter.verify((error, success) => {
+  if (error) {
+    console.error('Email configuration error:', error);
+  } else {
+    console.log('Email server is ready to send messages');
   }
 });
 
@@ -27,7 +36,8 @@ router.post('/forgot-password', async (req, res) => {
     const user = await prisma.user.findUnique({ where: { email } });
     
     if (!user) {
-      return res.status(404).json({ message: 'User not found' });
+      // For security, don't reveal if user exists
+      return res.json({ message: 'If an account exists with this email, you will receive password reset instructions.' });
     }
     
     // Generate reset token
@@ -47,21 +57,27 @@ router.post('/forgot-password', async (req, res) => {
     const resetUrl = `${process.env.CLIENT_URL}/reset-password/${resetToken}`;
     
     await transporter.sendMail({
+      from: `"RPG Character Sheet" <${process.env.SMTP_USER}>`,
       to: user.email,
       subject: 'Reset hasła - RPG Character Sheet',
       html: `
-        <p>Otrzymaliśmy prośbę o reset hasła dla twojego konta.</p>
-        <p>Kliknij poniższy link, aby zresetować hasło:</p>
-        <a href="${resetUrl}">${resetUrl}</a>
-        <p>Link wygaśnie za godzinę.</p>
-        <p>Jeśli nie prosiłeś o reset hasła, zignoruj tę wiadomość.</p>
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+          <h2 style="color: #7f1d1d;">Reset hasła</h2>
+          <p>Otrzymaliśmy prośbę o reset hasła dla twojego konta.</p>
+          <p>Aby zresetować hasło, kliknij poniższy link:</p>
+          <a href="${resetUrl}" style="display: inline-block; background: #7f1d1d; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; margin: 15px 0;">
+            Resetuj hasło
+          </a>
+          <p style="color: #666; font-size: 14px;">Link wygaśnie za godzinę.</p>
+          <p style="color: #666; font-size: 14px;">Jeśli nie prosiłeś o reset hasła, zignoruj tę wiadomość.</p>
+        </div>
       `
     });
     
-    res.json({ message: 'Reset password instructions sent to email' });
+    res.json({ message: 'If an account exists with this email, you will receive password reset instructions.' });
   } catch (error) {
     console.error('Password reset request error:', error);
-    res.status(500).json({ message: 'Server error during password reset request' });
+    res.status(500).json({ message: 'Wystąpił błąd podczas wysyłania instrukcji resetowania hasła.' });
   }
 });
 
@@ -82,7 +98,7 @@ router.post('/reset-password/:token', async (req, res) => {
     });
     
     if (!user) {
-      return res.status(400).json({ message: 'Invalid or expired reset token' });
+      return res.status(400).json({ message: 'Link do resetowania hasła jest nieprawidłowy lub wygasł.' });
     }
     
     // Hash new password
@@ -99,65 +115,10 @@ router.post('/reset-password/:token', async (req, res) => {
       }
     });
     
-    res.json({ message: 'Password reset successful' });
+    res.json({ message: 'Hasło zostało pomyślnie zmienione.' });
   } catch (error) {
     console.error('Password reset error:', error);
-    res.status(500).json({ message: 'Server error during password reset' });
-  }
-});
-
-// Register a new user
-router.post('/register', async (req, res) => {
-  const { name, email, password, role } = req.body;
-  const prisma = req.app.locals.prisma;
-  
-  try {
-    // Check if user already exists
-    const existingUser = await prisma.user.findUnique({
-      where: { email }
-    });
-    
-    if (existingUser) {
-      return res.status(400).json({ message: 'User with this email already exists' });
-    }
-    
-    // Validate role
-    if (role !== 'PLAYER' && role !== 'GM') {
-      return res.status(400).json({ message: 'Invalid role. Must be PLAYER or GM' });
-    }
-    
-    // Hash password
-    const salt = await bcrypt.genSalt(10);
-    const hashedPassword = await bcrypt.hash(password, salt);
-    
-    // Create new user
-    const user = await prisma.user.create({
-      data: {
-        name,
-        email,
-        password: hashedPassword,
-        role
-      }
-    });
-    
-    // Generate JWT token
-    const token = jwt.sign(
-      { id: user.id, email: user.email, role: user.role },
-      process.env.JWT_SECRET,
-      { expiresIn: '7d' }
-    );
-    
-    // Return user info and token (exclude password)
-    const { password: _, ...userWithoutPassword } = user;
-    
-    res.status(201).json({
-      message: 'User registered successfully',
-      user: userWithoutPassword,
-      token
-    });
-  } catch (error) {
-    console.error('Registration error:', error);
-    res.status(500).json({ message: 'Server error during registration' });
+    res.status(500).json({ message: 'Wystąpił błąd podczas resetowania hasła.' });
   }
 });
 
