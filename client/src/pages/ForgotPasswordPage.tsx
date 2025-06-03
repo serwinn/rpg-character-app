@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
-import { KeyReset, AlertCircle, ArrowLeft } from 'lucide-react';
+import { KeyRound, AlertCircle, ArrowLeft } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
@@ -39,7 +39,7 @@ const ForgotPasswordPage = () => {
       <Card className="w-full max-w-md mx-auto">
         <CardHeader>
           <CardTitle className="flex items-center justify-center gap-2">
-            <KeyReset size={24} />
+            <KeyRound size={24} />
             <span>Reset hasła</span>
           </CardTitle>
         </CardHeader>
