@@ -96,6 +96,15 @@ const LoginPage = () => {
               />
             </FormField>
             
+            <div className="flex justify-end">
+              <Link 
+                to="/forgot-password" 
+                className="text-sm text-red-800 hover:text-red-700"
+              >
+                Zapomniałeś hasła?
+              </Link>
+            </div>
+            
             <Button
               type="submit"
               fullWidth
